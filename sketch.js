@@ -1,4 +1,6 @@
-// import { map } from "./libraries/cem/0.2.1/cem.js";
+import { Queue, floorStep } from "./libraries/cem/0.2.1/cem.js";
+const p5 = window.p5;
+
 
 window.setup = () => {
   const paperWidth = 8.5,
@@ -22,33 +24,28 @@ const switches = {
   allOn() { return this.on.every(Boolean) }, 
 };
 switches.on[4] = switches.on[8] = switches.on[11] = true; //default
+// switches.on[5] = true; //"home"
 
 const mouse = {};
 function setupMouse() {
   Object.assign(mouse, { 
     get x() { return mouseX }, 
     get y() { return mouseY },
-    xAcc: 168.5, //width/2,
-    yAcc: 380, //height/2,
-    dragSpeedMult: 5.5, 
-    getYAccNorm() { 
-      return this.dragSpeedMult * 
-             map(this.yAcc, 0, height, -0.5, 0.5) 
-             + 0.5; 
+    accumulator: {
+      x: -48, //width/2,
+      y: 18, //height/2,
     },
-    getXAccNorm() { 
-      return this.dragSpeedMult * 
-             map(this.xAcc, 0, width, -0.5, 0.5) 
-             + 0.5; 
-    },
+    dragSpeedMult: 0.5, 
+    getDragPositionY() { return this.accumulator.y; },
+    getDragPositionX() { return this.accumulator.x; },
+    getDragPosition()  { return this.accumulator },
     accumulate() {
-      this.xAcc += mouseX - pmouseX;
-      this.yAcc += mouseY - pmouseY;
-      // console.log(this.xAcc, this.yAcc);
+      this.accumulator.x += (mouseX - pmouseX) * this.dragSpeedMult;
+      this.accumulator.y += (mouseY - pmouseY) * this.dragSpeedMult;
     },
     reset: function() {
-      this.xAcc = width/2;
-      this.yAcc = height/2;
+      this.accumulator.x = width/2;
+      this.accumulator.y = height/2;
     }
   });
   
@@ -56,44 +53,40 @@ function setupMouse() {
 
 // ======================================================
 
-
-
-
-
+const frames = new Queue(15, 60);
 window.draw = () => {
+  frames.tick(frameRate());
+  document.title = `${int(frameRate())}/${int(frames.average())} fps, Frame ${frameCount}`;
+  draw();
+}
 
+const draw = () => {
   background(240); 
-
-  // Compensate Drag
-  const offset = { 
-    x: mouse.getXAccNorm(),
-    y: mouse.getYAccNorm()
-  }
   
   // Subtle Rotation
-  const period = 0.25 * int(map(mouseX, 0, width, 5, 30)); //sec
+  const period = 0.25 * map(floorStep(mouseX, width/7), 0, width, 5, 60); //sec
   const shiver = {
     cycle: millis() * TWO_PI / (period * 1000),
     amplitude: 50,
   };
 
   // Grid
-  const base = 9;
   const grid = {
-    base,
-    extra: base*3,
+    base: 9
   };
   grid.num = {
-    x: ceil(grid.base * (width  / min(width, height))) + 2*grid.extra,
-    y: ceil(grid.base * (height / min(width, height))) + 2*grid.extra
+    x: ceil(grid.base * (width  / min(width, height))),
+    y: ceil(grid.base * (height / min(width, height)))
   };
   grid.spacing = {
-    x: width  / (grid.num.x - (grid.extra*2)),
-    y: height / (grid.num.y - (grid.extra*2))
+    x: width  / grid.num.x,
+    y: height / grid.num.y
   }
+  grid.extra = ceil(max(Object.values(mouse.getDragPosition()).map(abs)) / min(Object.values(grid.spacing))) + 1
+  grid.num.x += 2*grid.extra;
+  grid.num.y += 2*grid.extra;
 
-  // Math -- Step/Point Data
-  let steps = Array(grid.num.x).fill(Array(grid.num.y).fill({}));
+
   for (let i = 0; i < grid.num.x; i++) {
     for (let j = 0; j < grid.num.y; j++) {
       const step = {
@@ -107,22 +100,14 @@ window.draw = () => {
       step.noise.result = noise(step.x*step.noise.scale, 
                                 step.y*step.noise.scale, 
                                 millis()/1000) *
-                     step.noise.amplitude;
+                          step.noise.amplitude;
       step.midPoint = {
-        x: lerp(0, grid.spacing.x, offset.x) + 
-           shiver.amplitude*cos(shiver.cycle)*step.noise.result,
-        y: lerp(0, grid.spacing.y, offset.y) + 
-           shiver.amplitude*sin(shiver.cycle)*step.noise.result,
+        x: mouse.getDragPositionX() + 
+           (shiver.amplitude*cos(shiver.cycle)*step.noise.result),
+        y: mouse.getDragPositionY() + 
+           (shiver.amplitude*sin(shiver.cycle)*step.noise.result),
       }
-  //     // save
-  //     steps[i][j] = step; //TODO inefficient, rewrite
-  //   }
-  // }
 
-  // // Draw
-  // for (let i = 0; i < grid.num.x; i++) {
-  //   for (let j = 0; j < grid.num.y; j++) {
-  //     const step = steps[i][j];
       push();
       translate(step.x, step.y);
       stroke(0, 0, 255, 128);
