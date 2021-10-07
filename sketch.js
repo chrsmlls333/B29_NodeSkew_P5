@@ -1,4 +1,5 @@
 import { Queue, floorStep, ceilVector } from "./libraries/cem/0.2.1/cem.js";
+import { SVGmode, removeBackgroundSVG, getLinePathXY, setLinePathXY } from "./libraries/cem/0.2.1/src/p5SVG.js";
 
 let canvasDims;
 window.setup = () => {
@@ -6,7 +7,8 @@ window.setup = () => {
         paperHeight = 11,
         canvasScalar = 70;
   createCanvas( paperWidth*canvasScalar, 
-                paperHeight*canvasScalar);
+                paperHeight*canvasScalar,
+                SVG);
   canvasDims = createVector(width, height);
   // frameRate(10);
   noSmooth();
@@ -52,15 +54,30 @@ function setupMouse() {
 
 // ======================================================
 
+let recordSVG = false;
 const frames = new Queue(30, 60);
 window.draw = () => {
   frames.tick(frameRate());
   document.title = `${int(frameRate())}/${int(frames.average())} fps, Frame ${frameCount}`;
   canvasDims.set(width, height);
   draw();
+  if (recordSVG) {
+    removeBackgroundSVG();
+    let points = getLinePathXY( querySVG('path')[200] )
+    points[0].x += 200;
+    setLinePathXY( querySVG('path')[200], points )
+    save();
+    // const svgGraphicsContainer = querySVG(':scope > g');
+    // const backgroundSVG = querySVG(':scope > g > rect:first-child')
+    // // if ()
+    // console.log(backgroundSVG.attribute('width'));
+    // console.log(SVG.SVGmode());
+    recordSVG = false;
+  }
 }
 
 const draw = () => {
+  clear();
   background(240); 
   
   // Subtle Rotation
@@ -195,6 +212,10 @@ window.keyTyped = (event) => {
   if (key == ' ') {
     switches.reset();
     mouse.reset();
+  }
+
+  if (key == '5'){
+    recordSVG = true;
   }
   
 }
