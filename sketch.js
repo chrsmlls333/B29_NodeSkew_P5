@@ -1,13 +1,13 @@
-import { Queue, floorStep } from "./libraries/cem/0.2.1/cem.js";
-const p5 = window.p5;
+import { Queue, floorStep, ceilVector } from "./libraries/cem/0.2.1/cem.js";
 
-
+let canvasDims;
 window.setup = () => {
   const paperWidth = 8.5,
         paperHeight = 11,
         canvasScalar = 70;
   createCanvas( paperWidth*canvasScalar, 
                 paperHeight*canvasScalar);
+  canvasDims = createVector(width, height);
   // frameRate(10);
   noSmooth();
 
@@ -28,35 +28,35 @@ switches.on[4] = switches.on[8] = switches.on[11] = true; //default
 
 const mouse = {};
 function setupMouse() {
+  const defaultAccumulator = createVector( -48, 18 );
   Object.assign(mouse, { 
     get x() { return mouseX }, 
     get y() { return mouseY },
-    accumulator: {
-      x: -48, //width/2,
-      y: 18, //height/2,
-    },
+    accumulator: defaultAccumulator,
     dragSpeedMult: 0.5, 
     getDragPositionY() { return this.accumulator.y; },
     getDragPositionX() { return this.accumulator.x; },
     getDragPosition()  { return this.accumulator },
     accumulate() {
-      this.accumulator.x += (mouseX - pmouseX) * this.dragSpeedMult;
-      this.accumulator.y += (mouseY - pmouseY) * this.dragSpeedMult;
+      const m = createVector( mouseX,  mouseY  );
+      const p = createVector( pmouseX, pmouseY );
+      const d = p5.Vector.sub( m, p );
+      d.mult(this.dragSpeedMult);
+      this.accumulator.add( d )
     },
     reset: function() {
-      this.accumulator.x = width/2;
-      this.accumulator.y = height/2;
+      this.accumulator = defaultAccumulator;
     }
   });
-  
 }
 
 // ======================================================
 
-const frames = new Queue(15, 60);
+const frames = new Queue(30, 60);
 window.draw = () => {
   frames.tick(frameRate());
   document.title = `${int(frameRate())}/${int(frames.average())} fps, Frame ${frameCount}`;
+  canvasDims.set(width, height);
   draw();
 }
 
@@ -68,44 +68,81 @@ const draw = () => {
   const shiver = {
     cycle: millis() * TWO_PI / (period * 1000),
     amplitude: 50,
+    get vector() {
+      const v = createVector(
+        cos(this.cycle), 
+        sin(this.cycle)
+      );
+      v.mult(this.amplitude);
+      Object.defineProperty(this, "vector", {value: v})
+      return v;
+    }
   };
 
   // Grid
-  const grid = {
-    base: 9
-  };
-  grid.num = {
-    x: ceil(grid.base * (width  / min(width, height))),
-    y: ceil(grid.base * (height / min(width, height)))
-  };
-  grid.spacing = {
-    x: width  / grid.num.x,
-    y: height / grid.num.y
+  const generateGrid = () => {
+    const baseDivisions = 9;
+    const minDim = min(width, height);    
+    const numCells = p5.Vector.mult(canvasDims, baseDivisions / minDim);
+    ceilVector(numCells);
+    numCells.z = 1; // don't divide by zero ;P
+    const cellSpacing = p5.Vector.div(canvasDims, numCells)
+    const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
+    const minSpacingValue = min(cellSpacing.array().slice(0, 2));
+    const extraCellsPadding = ceil(maxDragCartesian / minSpacingValue) + 1;
+    const extraCellsTotal = extraCellsPadding * 2;
+    numCells.add(extraCellsTotal, extraCellsTotal);
+    return {
+      base: baseDivisions,
+      num: numCells,
+      spacing: cellSpacing,
+      extra: extraCellsPadding,
+      extra2: extraCellsTotal
+    };
   }
-  grid.extra = ceil(max(Object.values(mouse.getDragPosition()).map(abs)) / min(Object.values(grid.spacing))) + 1
-  grid.num.x += 2*grid.extra;
-  grid.num.y += 2*grid.extra;
+  const grid = generateGrid();
 
+  const interactiveAmplitude = mouseIsPressed ? 0 : 
+    constrain(map(mouseY, height*0.1, height*0.9, 1, 0),0,1);
+
+  const noiser = {
+    amplitude: 1,
+    _step: createVector(),
+    set step({ x, y }) {
+      this._step = p5.Vector.mult(createVector(x, y), 200);
+    },
+    get result() {
+      return noise( this._step.x, 
+                    this._step.y, 
+                    millis() / 1000 ) * this.amplitude;
+    }
+  }
 
   for (let i = 0; i < grid.num.x; i++) {
     for (let j = 0; j < grid.num.y; j++) {
-      const step = {
-        x: (i-grid.extra) * grid.spacing.x,
-        y: (j-grid.extra) * grid.spacing.y
-      }
-      step.noise = {
-        scale: 200,
-        amplitude: mouseIsPressed ? 0 : constrain(map(mouseY, height*0.1, height*0.9, 1, 0),0,1),
-      }
-      step.noise.result = noise(step.x*step.noise.scale, 
-                                step.y*step.noise.scale, 
-                                millis()/1000) *
-                          step.noise.amplitude;
-      step.midPoint = {
-        x: mouse.getDragPositionX() + 
-           (shiver.amplitude*cos(shiver.cycle)*step.noise.result),
-        y: mouse.getDragPositionY() + 
-           (shiver.amplitude*sin(shiver.cycle)*step.noise.result),
+      const index = {x:i, y:j}
+      noiser.step = index;
+
+      let display = true;
+
+      const step = createVector(i, j);
+      step.sub(grid.extra, grid.extra);
+      step.mult(grid.spacing);
+  
+      let midPoint = mouse.getDragPosition().copy();
+      switch (3) {
+        case 1:
+          midPoint.add(p5.Vector.mult(shiver.vector, interactiveAmplitude));
+          break;
+        case 2:
+          midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
+          break;
+        case 3:
+          midPoint.add(createVector(noiser.result, noiser.result).mult(30 * interactiveAmplitude));
+          break;
+      
+        default:
+          break;
       }
 
       push();
@@ -119,14 +156,14 @@ const draw = () => {
           x: (s % 4) - 1,
           y: (s - (s % 4))/4 - 1
         }
-        line( step.midPoint.x, step.midPoint.y, 
-              grid.spacing.x * quad.x, grid.spacing.y * quad.y );
+        line( midPoint.x,               midPoint.y, 
+              grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
       }
 
       strokeWeight(5);
 
       if (switches.allOff()) {
-        point(step.midPoint.x, step.midPoint.y);
+        point(midPoint.x, midPoint.y);
       }
 
       pop();
