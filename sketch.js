@@ -1,4 +1,4 @@
-import { postDraw, preDraw, floorStep, ceilVector, requestSVG } from "./libraries/cem/0.2.1/cem.js";
+import { postDraw, preDraw, floorStep, ceilVector, requestSVG } from "./libraries/cem/0.2.2/cem.js";
 
 let canvasDims;
 window.setup = () => {
