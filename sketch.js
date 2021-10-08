@@ -1,5 +1,4 @@
-import { Queue, floorStep, ceilVector } from "./libraries/cem/0.2.1/cem.js";
-import { SVGmode, removeBackgroundSVG, getLinePathXY, setLinePathXY } from "./libraries/cem/0.2.1/src/p5SVG.js";
+import { postDraw, preDraw, floorStep, ceilVector, requestSVG } from "./libraries/cem/0.2.1/cem.js";
 
 let canvasDims;
 window.setup = () => {
@@ -16,68 +15,17 @@ window.setup = () => {
   setupMouse();
 }
 
-const switches = {
-  on: Array(16).fill(false),
-  get(i) { return this.on[i] },
-  set(i, v) { this.on[i] = v },
-  toggle(i) { this.on[i] = !this.on[i] },
-  reset(b = false) { this.on.fill(b) },
-  allOff() { return !this.on.some(Boolean) },
-  allOn() { return this.on.every(Boolean) }, 
-};
-switches.on[4] = switches.on[8] = switches.on[11] = true; //default
-// switches.on[5] = true; //"home"
-
-const mouse = {};
-function setupMouse() {
-  const defaultAccumulator = createVector( -48, 18 );
-  Object.assign(mouse, { 
-    get x() { return mouseX }, 
-    get y() { return mouseY },
-    accumulator: defaultAccumulator,
-    dragSpeedMult: 0.5, 
-    getDragPositionY() { return this.accumulator.y; },
-    getDragPositionX() { return this.accumulator.x; },
-    getDragPosition()  { return this.accumulator },
-    accumulate() {
-      const m = createVector( mouseX,  mouseY  );
-      const p = createVector( pmouseX, pmouseY );
-      const d = p5.Vector.sub( m, p );
-      d.mult(this.dragSpeedMult);
-      this.accumulator.add( d )
-    },
-    reset: function() {
-      this.accumulator = defaultAccumulator;
-    }
-  });
-}
-
 // ======================================================
 
-let recordSVG = false;
-const frames = new Queue(30, 60);
 window.draw = () => {
-  frames.tick(frameRate());
-  document.title = `${int(frameRate())}/${int(frames.average())} fps, Frame ${frameCount}`;
   canvasDims.set(width, height);
+  
+  preDraw();
   draw();
-  if (recordSVG) {
-    removeBackgroundSVG();
-    let points = getLinePathXY( querySVG('path')[200] )
-    points[0].x += 200;
-    setLinePathXY( querySVG('path')[200], points )
-    save();
-    // const svgGraphicsContainer = querySVG(':scope > g');
-    // const backgroundSVG = querySVG(':scope > g > rect:first-child')
-    // // if ()
-    // console.log(backgroundSVG.attribute('width'));
-    // console.log(SVG.SVGmode());
-    recordSVG = false;
-  }
+  postDraw();
 }
 
 const draw = () => {
-  clear();
   background(240); 
   
   // Subtle Rotation
@@ -190,6 +138,44 @@ const draw = () => {
 
 // =============================================================
 
+const switches = {
+  on: Array(16).fill(false),
+  get(i) { return this.on[i] },
+  set(i, v) { this.on[i] = v },
+  toggle(i) { this.on[i] = !this.on[i] },
+  reset(b = false) { this.on.fill(b) },
+  allOff() { return !this.on.some(Boolean) },
+  allOn() { return this.on.every(Boolean) }, 
+};
+switches.on[4] = switches.on[8] = switches.on[11] = true; //default
+// switches.on[5] = true; //"home"
+
+const mouse = {};
+function setupMouse() {
+  Object.assign(mouse, { 
+    get x() { return mouseX }, 
+    get y() { return mouseY },
+    defaultAccumulator: createVector( -48, 18 ),
+    accumulator: createVector(),
+    dragSpeedMult: 0.5, 
+    getDragPositionY() { return this.accumulator.y; },
+    getDragPositionX() { return this.accumulator.x; },
+    getDragPosition()  { return this.accumulator },
+    accumulate() {
+      const m = createVector( mouseX,  mouseY  );
+      const p = createVector( pmouseX, pmouseY );
+      const d = p5.Vector.sub( m, p );
+      d.mult(this.dragSpeedMult);
+      this.accumulator.add( d )
+    },
+    reset: function() {
+      this.accumulator = this.defaultAccumulator;
+    }
+  });
+  mouse.reset();
+  return mouse;
+}
+
 window.mouseDragged = (event) => {
   if (mouseButton == LEFT) {
     // console.log('hello');
@@ -215,7 +201,7 @@ window.keyTyped = (event) => {
   }
 
   if (key == '5'){
-    recordSVG = true;
+    requestSVG();
   }
   
 }
