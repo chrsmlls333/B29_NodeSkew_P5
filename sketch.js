@@ -72,14 +72,16 @@ const draw = () => {
 
   const noiser = {
     amplitude: 1,
+    scale: 0.1,//150,
+    driftSpeed: 1,
     _step: createVector(),
     set step({ x, y }) {
-      this._step = p5.Vector.mult(createVector(x, y), 200);
+      this._step = p5.Vector.mult(createVector(x, y), this.scale);
     },
     get result() {
       return noise( this._step.x, 
                     this._step.y, 
-                    millis() / 1000 ) * this.amplitude;
+                    this.driftSpeed * millis() / 1000 ) * this.amplitude;
     }
   }
 
@@ -87,8 +89,6 @@ const draw = () => {
     for (let j = 0; j < grid.num.y; j++) {
       const index = {x:i, y:j}
       noiser.step = index;
-
-      let display = true;
 
       const step = createVector(i, j);
       step.sub(grid.extra, grid.extra);
@@ -103,9 +103,10 @@ const draw = () => {
           midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
           break;
         case 3:
-          midPoint.add(createVector(noiser.result, noiser.result).mult(30 * interactiveAmplitude));
+          midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(30 * interactiveAmplitude));
           break;
-      
+        case 4:
+          break;
         default:
           break;
       }
