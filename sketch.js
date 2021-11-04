@@ -1,32 +1,35 @@
-import { postDraw, preDraw, floorStep, ceilVector, requestSVG } from "./libraries/cem/0.2.2/cem.js";
+import { floorStep, ceilVector } from "./libraries/cem/0.2.2/cem.js";
+import { p5Manager } from "./libraries/cem/0.2.2/src/p5/p5Manager.js";
 
-let canvasDims;
+let p5m;
 window.setup = () => {
   const paperWidth = 8.5,
         paperHeight = 11,
-        canvasScalar = 70;
-  createCanvas( paperWidth*canvasScalar, 
-                paperHeight*canvasScalar,
-                SVG);
-  canvasDims = createVector(width, height);
-  // frameRate(10);
-  noSmooth();
+        canvasScalar = 96;
+  const w = paperWidth*canvasScalar, 
+        h = paperHeight*canvasScalar;
 
-  setupMouse();
+  p5m = new p5Manager(w, h);
+  const {canvas, subCanvasP2D, subCanvasSVG} = p5m.canvases;
+  p5m.registerDraw(draw);
+
+  // frameRate(10);
+  subCanvasP2D.noSmooth();
+
+  setupMouse();  
+}
+
+window.draw = () => {
+  p5m.preDraw();
+  p5m.runUserDraw();
+  p5m.postDraw();
 }
 
 // ======================================================
 
-window.draw = () => {
-  canvasDims.set(width, height);
-  
-  preDraw();
-  draw();
-  postDraw();
-}
 
-const draw = () => {
-  background(240); 
+function draw(c) {
+  c.background(240); 
   
   // Subtle Rotation
   const period = 0.25 * map(floorStep(mouseX, width/7), 0, width, 5, 60); //sec
@@ -45,13 +48,14 @@ const draw = () => {
   };
 
   // Grid
+  const canvasVector = createVector(width, height);
   const generateGrid = () => {
     const baseDivisions = 9;
     const minDim = min(width, height);    
-    const numCells = p5.Vector.mult(canvasDims, baseDivisions / minDim);
+    const numCells = p5.Vector.mult(canvasVector, baseDivisions / minDim);
     ceilVector(numCells);
     numCells.z = 1; // don't divide by zero ;P
-    const cellSpacing = p5.Vector.div(canvasDims, numCells)
+    const cellSpacing = p5.Vector.div(canvasVector, numCells)
     const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
     const minSpacingValue = min(cellSpacing.array().slice(0, 2));
     const extraCellsPadding = ceil(maxDragCartesian / minSpacingValue) + 1;
@@ -111,10 +115,10 @@ const draw = () => {
           break;
       }
 
-      push();
-      translate(step.x, step.y);
-      stroke(0, 0, 255, 128);
-      strokeWeight(1);
+      c.push();
+      c.translate(step.x, step.y);
+      c.stroke(0, 0, 255, 128);
+      c.strokeWeight(1);
 
       for (const [s, v] of switches.on.entries()) {
         if (!v) continue;
@@ -122,17 +126,17 @@ const draw = () => {
           x: (s % 4) - 1,
           y: (s - (s % 4))/4 - 1
         }
-        line( midPoint.x,               midPoint.y, 
-              grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
+        c.line( midPoint.x,               midPoint.y, 
+                grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
       }
 
-      strokeWeight(5);
+      c.strokeWeight(5);
 
       if (switches.allOff()) {
-        point(midPoint.x, midPoint.y);
+        c.point(midPoint.x, midPoint.y);
       }
 
-      pop();
+      c.pop();
     }
   }
 }
@@ -202,7 +206,11 @@ window.keyTyped = (event) => {
   }
 
   if (key == '5'){
-    requestSVG();
+    p5m.requestSVG();
+  }
+
+  if (key == '6'){
+    p5m.requestImage();
   }
   
 }
