@@ -139,6 +139,24 @@ function draw(c) {
       c.pop();
     }
   }
+
+  // ==========================================
+  
+  p5m.setUserData({
+    variables: {
+      canvas: {
+        width,
+        height,
+      },
+      grid,
+      shiver,
+      noiser,
+      interactiveAmplitude,
+    },
+    // setup: window.setup.toString(),
+    // draw: draw.toString(),
+    // file: import.meta.url,
+  })
 }
 
 // =============================================================
