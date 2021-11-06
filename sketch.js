@@ -3,6 +3,8 @@ import { p5Manager } from "./libraries/cem/0.2.2/src/p5/p5Manager.js";
 
 let p5m;
 window.setup = () => {
+  p5.disableFriendlyErrors = true; // disables FES
+
   const paperWidth = 8.5,
         paperHeight = 11,
         canvasScalar = 96;
@@ -15,7 +17,8 @@ window.setup = () => {
     c.noSmooth();
   })
 
-  // frameRate(10);
+  frameRate(30);
+
   setupMouse();  
 }
 
@@ -107,7 +110,7 @@ function draw(c) {
           midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
           break;
         case 3:
-          midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(30 * interactiveAmplitude));
+          midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(50 * interactiveAmplitude));
           break;
         case 4:
           break;
