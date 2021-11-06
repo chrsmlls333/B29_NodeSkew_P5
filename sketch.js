@@ -10,12 +10,12 @@ window.setup = () => {
         h = paperHeight*canvasScalar;
 
   p5m = new p5Manager(w, h);
-  const {canvas, subCanvasP2D, subCanvasSVG} = p5m.canvases;
   p5m.registerDraw(draw);
+  p5m.applyToCanvases((c) => {
+    c.noSmooth();
+  })
 
   // frameRate(10);
-  subCanvasP2D.noSmooth();
-
   setupMouse();  
 }
 
