@@ -233,5 +233,10 @@ window.keyTyped = (event) => {
   if (key == '6'){
     p5m.requestImage();
   }
+
+  if (key == '7'){
+    p5m.requestSVG();
+    p5m.requestImage();
+  }
   
 }
