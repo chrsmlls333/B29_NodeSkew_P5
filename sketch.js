@@ -1,25 +1,31 @@
-import { floorStep, ceilVector } from "./libraries/cem/0.2.2/cem.js";
-import { p5Manager } from "./libraries/cem/0.2.2/src/p5/p5Manager.js";
+import { p5Manager, floorStep } from "./libraries/cem/0.2.2/cem.js";
+import { Grid } from "./gestures/Grid.js";
 
-let p5m;
-window.setup = () => {
+
+let page = {
+  paperWidthIn: 8.5,
+  paperHeightIn: 11,
+  resolution: 96,
+  marginPx: 0, 
+  get width()  { return  this.paperWidthIn*this.resolution },
+  get height() { return this.paperHeightIn*this.resolution },
+  get innerWidth()  { return  (this.paperWidthIn*this.resolution) - (this.marginPx*2) },
+  get innerHeight() { return (this.paperHeightIn*this.resolution) - (this.marginPx*2) },
+};
+
+let p5m, grid;
+window.setup = function() {
   p5.disableFriendlyErrors = true; // disables FES
 
-  const paperWidth = 8.5,
-        paperHeight = 11,
-        canvasScalar = 96;
-  const w = paperWidth*canvasScalar, 
-        h = paperHeight*canvasScalar;
-
-  p5m = new p5Manager(w, h);
+  p5m = new p5Manager(page.width, page.height);
   p5m.registerDraw(draw);
   p5m.applyToCanvases((c) => {
     c.noSmooth();
   })
-
   frameRate(30);
 
   setupMouse();  
+  grid = new Grid( page.innerWidth, page.innerHeight, 14 );
 }
 
 window.draw = () => {
@@ -33,6 +39,10 @@ window.draw = () => {
 
 function draw(c) {
   c.background(240); 
+
+  //Expand Grid for long lines
+  const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
+  grid.adjustPadding(maxDragCartesian);
   
   // Subtle Rotation
   const period = 0.25 * map(floorStep(mouseX, width/7), 0, width, 5, 60); //sec
@@ -50,30 +60,7 @@ function draw(c) {
     }
   };
 
-  // Grid
-  const canvasVector = createVector(width, height);
-  const generateGrid = () => {
-    const baseDivisions = 9;
-    const minDim = min(width, height);    
-    const numCells = p5.Vector.mult(canvasVector, baseDivisions / minDim);
-    ceilVector(numCells);
-    numCells.z = 1; // don't divide by zero ;P
-    const cellSpacing = p5.Vector.div(canvasVector, numCells)
-    const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
-    const minSpacingValue = min(cellSpacing.array().slice(0, 2));
-    const extraCellsPadding = ceil(maxDragCartesian / minSpacingValue) + 1;
-    const extraCellsTotal = extraCellsPadding * 2;
-    numCells.add(extraCellsTotal, extraCellsTotal);
-    return {
-      base: baseDivisions,
-      num: numCells,
-      spacing: cellSpacing,
-      extra: extraCellsPadding,
-      extra2: extraCellsTotal
-    };
-  }
-  const grid = generateGrid();
-
+  const mousePosition = mouse.getDragPosition().copy();
   const interactiveAmplitude = mouseIsPressed ? 0 : 
     constrain(map(mouseY, height*0.1, height*0.9, 1, 0),0,1);
 
@@ -91,57 +78,53 @@ function draw(c) {
                     this.driftSpeed * millis() / 1000 ) * this.amplitude;
     }
   }
-
-  for (let i = 0; i < grid.num.x; i++) {
-    for (let j = 0; j < grid.num.y; j++) {
-      const index = {x:i, y:j}
-      noiser.step = index;
-
-      const step = createVector(i, j);
-      step.sub(grid.extra, grid.extra);
-      step.mult(grid.spacing);
   
-      let midPoint = mouse.getDragPosition().copy();
-      switch (3) {
-        case 1:
-          midPoint.add(p5.Vector.mult(shiver.vector, interactiveAmplitude));
-          break;
-        case 2:
-          midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
-          break;
-        case 3:
-          midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(50 * interactiveAmplitude));
-          break;
-        case 4:
-          break;
-        default:
-          break;
-      }
+  c.translate(page.marginPx, page.marginPx);
 
-      c.push();
-      c.translate(step.x, step.y);
-      c.stroke(0, 0, 255, 128);
-      c.strokeWeight(1);
+  grid.forEachNode(({index0, index, position}) => {
 
-      for (const [s, v] of switches.on.entries()) {
-        if (!v) continue;
-        const quad = {
-          x: (s % 4) - 1,
-          y: (s - (s % 4))/4 - 1
-        }
-        c.line( midPoint.x,               midPoint.y, 
-                grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
-      }
-
-      c.strokeWeight(5);
-
-      if (switches.allOff()) {
-        c.point(midPoint.x, midPoint.y);
-      }
-
-      c.pop();
+    //Get variations
+    noiser.step = index0;
+    let midPoint = mousePosition.copy();
+    switch (3) {
+      case 1:
+        midPoint.add(p5.Vector.mult(shiver.vector, interactiveAmplitude));
+        break;
+      case 2:
+        midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
+        break;
+      case 3:
+        midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(50 * interactiveAmplitude));
+        break;
+      case 4:
+        break;
+      default:
+        break;
     }
-  }
+
+    c.push();
+    c.translate(position.x, position.y);
+    c.stroke(0, 0, 255, 128);
+    c.strokeWeight(1);
+
+    for (const [s, v] of switches.on.entries()) {
+      if (!v) continue;
+      const quad = {
+        x: (s % 4) - 1.5,
+        y: (s - (s % 4))/4 - 1.5
+      }
+      c.line( midPoint.x,               midPoint.y, 
+              grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
+    }
+
+    if (switches.allOff()) {
+      c.strokeWeight(5);
+      c.point(midPoint.x, midPoint.y);
+    }
+
+    c.pop();
+  });
+  
 
   // ==========================================
   
@@ -174,14 +157,13 @@ const switches = {
   allOn() { return this.on.every(Boolean) }, 
 };
 switches.on[4] = switches.on[8] = switches.on[11] = true; //default
-// switches.on[5] = true; //"home"
 
 const mouse = {};
 function setupMouse() {
   Object.assign(mouse, { 
     get x() { return mouseX }, 
     get y() { return mouseY },
-    defaultAccumulator: createVector( -48, 18 ),
+    defaultAccumulator: createVector( 0,0 ),
     accumulator: createVector(),
     dragSpeedMult: 0.5, 
     getDragPositionY() { return this.accumulator.y; },
@@ -194,9 +176,7 @@ function setupMouse() {
       d.mult(this.dragSpeedMult);
       this.accumulator.add( d )
     },
-    reset: function() {
-      this.accumulator = this.defaultAccumulator;
-    }
+    reset() { this.accumulator = this.defaultAccumulator }
   });
   mouse.reset();
   return mouse;
