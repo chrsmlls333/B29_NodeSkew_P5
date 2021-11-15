@@ -176,7 +176,7 @@ function setupMouse() {
       d.mult(this.dragSpeedMult);
       this.accumulator.add( d )
     },
-    reset() { this.accumulator = this.defaultAccumulator }
+    reset() { this.accumulator.set(this.defaultAccumulator) }
   });
   mouse.reset();
   return mouse;
