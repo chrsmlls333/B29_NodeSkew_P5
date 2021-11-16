@@ -29,7 +29,7 @@ window.setup = function() {
   setupMouse();  
 
   // Build Grid
-  grid = new Grid( page.innerWidth, page.innerHeight, 12 );
+  grid = new Grid( page.innerWidth, page.innerHeight, 24 );
 
   // Subtle Rotation
   shiver = {
