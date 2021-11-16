@@ -13,7 +13,8 @@ let page = {
   get innerHeight() { return (this.paperHeightIn*this.resolution) - (this.marginPx*2) },
 };
 
-let p5m, grid;
+
+let p5m, grid, shiver, noiser;
 window.setup = function() {
   p5.disableFriendlyErrors = true; // disables FES
 
@@ -24,8 +25,40 @@ window.setup = function() {
   })
   frameRate(30);
 
+  // Initialize
   setupMouse();  
-  grid = new Grid( page.innerWidth, page.innerHeight, 14 );
+
+  // Build Grid
+  grid = new Grid( page.innerWidth, page.innerHeight, 12 );
+
+  // Subtle Rotation
+  shiver = {
+    period() { return 0.25 * map(floorStep(mouseX, width/7), 0, width, 5, 60); }, //sec
+    cycle() { return (frameCount / 60) * (TWO_PI / this.period()) },
+    amplitude: 50,
+    vector() {
+      const v = createVector( cos(this.cycle()), sin(this.cycle()) );
+      v.mult(this.amplitude);
+      // Object.defineProperty(this, "vector", {value: v})
+      return v;
+    }
+  };
+
+  // Comment
+  noiser = {
+    amplitude: 1,
+    scale: 0.1,//150,
+    driftSpeed: 1,
+    _step: createVector(),
+    set step({ x, y }) {
+      this._step = p5.Vector.mult(createVector(x, y), this.scale);
+    },
+    result() {
+      return noise( this._step.x, 
+                    this._step.y, 
+                    this.driftSpeed * frameCount / 60 ) * this.amplitude;
+    }
+  }
 }
 
 window.draw = () => {
@@ -40,47 +73,19 @@ window.draw = () => {
 function draw(c) {
   c.background(240); 
 
-  //Expand Grid for long lines
+  // Expand Grid for long lines
   const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
   grid.adjustPadding(maxDragCartesian);
   
-  // Subtle Rotation
-  const period = 0.25 * map(floorStep(mouseX, width/7), 0, width, 5, 60); //sec
-  const shiver = {
-    cycle: millis() * TWO_PI / (period * 1000),
-    amplitude: 50,
-    get vector() {
-      const v = createVector(
-        cos(this.cycle), 
-        sin(this.cycle)
-      );
-      v.mult(this.amplitude);
-      Object.defineProperty(this, "vector", {value: v})
-      return v;
-    }
-  };
-
+  // Calculate MouseY Scaling of Dynamics
   const mousePosition = mouse.getDragPosition().copy();
   const interactiveAmplitude = mouseIsPressed ? 0 : 
     constrain(map(mouseY, height*0.1, height*0.9, 1, 0),0,1);
 
-  const noiser = {
-    amplitude: 1,
-    scale: 0.1,//150,
-    driftSpeed: 1,
-    _step: createVector(),
-    set step({ x, y }) {
-      this._step = p5.Vector.mult(createVector(x, y), this.scale);
-    },
-    get result() {
-      return noise( this._step.x, 
-                    this._step.y, 
-                    this.driftSpeed * millis() / 1000 ) * this.amplitude;
-    }
-  }
-  
+  // 
   c.translate(page.marginPx, page.marginPx);
 
+  //
   grid.forEachNode(({index0, index, position}) => {
 
     //Get variations
@@ -88,13 +93,13 @@ function draw(c) {
     let midPoint = mousePosition.copy();
     switch (3) {
       case 1:
-        midPoint.add(p5.Vector.mult(shiver.vector, interactiveAmplitude));
+        midPoint.add(p5.Vector.mult(shiver.vector(), interactiveAmplitude));
         break;
       case 2:
-        midPoint.add(p5.Vector.mult(shiver.vector, noiser.result * interactiveAmplitude));
+        midPoint.add(p5.Vector.mult(shiver.vector(), noiser.result * interactiveAmplitude));
         break;
       case 3:
-        midPoint.add(createVector(noiser.result-0.5, noiser.result-0.5).mult(50 * interactiveAmplitude));
+        midPoint.add(createVector(noiser.result()-0.5, noiser.result()-0.5).mult(50 * interactiveAmplitude));
         break;
       case 4:
         break;
