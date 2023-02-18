@@ -1,4 +1,4 @@
-import { p5Manager, floorStep } from "./libraries/cem/0.2.2/cem.js";
+import { p5Manager, floorStep, cyrusBeckLine } from "./libraries/cem/0.2.2/cem.js";
 import { Grid } from "./gestures/Grid.js";
 
 
@@ -14,19 +14,17 @@ let page = {
 };
 
 
-let p5m, grid, shiver, noiser;
+let p5m, mouse, grid, shiver, noiser;
 window.setup = function() {
   p5.disableFriendlyErrors = true; // disables FES
 
-  p5m = new p5Manager(page.width, page.height);
+  window.p5m = p5m = new p5Manager(page.width, page.height);
+  mouse = p5m.mouse;
   p5m.registerDraw(draw);
   p5m.applyToCanvases((c) => {
     c.noSmooth();
   })
-  frameRate(30);
-
-  // Initialize
-  setupMouse();  
+  frameRate(60);
 
   // Build Grid
   grid = new Grid( page.innerWidth, page.innerHeight, 24 );
@@ -74,11 +72,11 @@ function draw(c) {
   c.background(240); 
 
   // Expand Grid for long lines
-  const maxDragCartesian = max(mouse.getDragPosition().array().map(abs));
+  const maxDragCartesian = max(mouse.dragPosition.array().map(abs));
   grid.adjustPadding(maxDragCartesian);
   
   // Calculate MouseY Scaling of Dynamics
-  const mousePosition = mouse.getDragPosition().copy();
+  const mousePosition = mouse.dragPosition.copy();
   const interactiveAmplitude = mouseIsPressed ? 0 : 
     constrain(map(mouseY, height*0.1, height*0.9, 1, 0),0,1);
 
@@ -163,34 +161,11 @@ const switches = {
 };
 switches.on[4] = switches.on[8] = switches.on[11] = true; //default
 
-const mouse = {};
-function setupMouse() {
-  Object.assign(mouse, { 
-    get x() { return mouseX }, 
-    get y() { return mouseY },
-    defaultAccumulator: createVector( 0,0 ),
-    accumulator: createVector(),
-    dragSpeedMult: 0.5, 
-    getDragPositionY() { return this.accumulator.y; },
-    getDragPositionX() { return this.accumulator.x; },
-    getDragPosition()  { return this.accumulator },
-    accumulate() {
-      const m = createVector( mouseX,  mouseY  );
-      const p = createVector( pmouseX, pmouseY );
-      const d = p5.Vector.sub( m, p );
-      d.mult(this.dragSpeedMult);
-      this.accumulator.add( d )
-    },
-    reset() { this.accumulator.set(this.defaultAccumulator) }
-  });
-  mouse.reset();
-  return mouse;
-}
 
 window.mouseDragged = (event) => {
   if (mouseButton == LEFT) {
     // console.log('hello');
-    mouse.accumulate();
+    mouse.drag();
   } else if (mouseButton == RIGHT) {
   } else if (mouseButton == CENTER) {
   }
