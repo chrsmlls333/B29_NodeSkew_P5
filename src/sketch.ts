@@ -1,11 +1,12 @@
 
-import p5, { p5InstanceExtensions } from "p5"
+import p5 from "p5"
 // @ts-ignore
 import p5Svg from "p5.js-svg"
 p5Svg(p5)
 
-import { p5Manager, floorStep, cyrusBeckLine } from "./libraries/cemjs/src/cem";
+import { p5Manager, floorStep, VecToArray, Vec, vecMultScalar, ObjToVec, vecAddVec } from "./libraries/cemjs/src/cem";
 import { Grid } from "./gestures/Grid";
+import { Mouse } from "./libraries/cemjs/src/p5";
 
 let page = {
   paperWidthIn: 8.5,
@@ -18,10 +19,15 @@ let page = {
   get innerHeight() { return (this.paperHeightIn*this.resolution) - (this.marginPx*2) },
 };
 
+let state = {
+  offset: Vec()
+}
+
 
 new p5((p: p5) => {
 
   let p5m: p5Manager;
+  let mouse = new Mouse(p, state.offset);
   let grid: Grid;
   let shiver: any;
   let noiser: any;
@@ -45,10 +51,8 @@ new p5((p: p5) => {
       cycle() { return (p.frameCount / 60) * (p.TWO_PI / this.period()) },
       amplitude: 50,
       vector() {
-        const v = p.createVector( p.cos(this.cycle()), p.sin(this.cycle()) );
-        v.mult(this.amplitude);
-        // Object.defineProperty(this, "vector", {value: v})
-        return v;
+        const c = this.cycle();
+        return vecMultScalar(Vec( Math.cos(c), Math.sin(c)), this.amplitude);
       }
     };
 
@@ -57,9 +61,9 @@ new p5((p: p5) => {
       amplitude: 1,
       scale: 0.1,//150,
       driftSpeed: 1,
-      _step: p.createVector(),
-      set step({ x, y }: p5.Vector) {
-        this._step = p5.Vector.mult(p.createVector(x, y), this.scale);
+      _step: Vec(),
+      set step({ x, y }: Vec) {
+        this._step = vecMultScalar(Vec(x, y), this.scale);
       },
       result() {
         return p.noise( this._step.x, this._step.y, 
@@ -80,25 +84,29 @@ new p5((p: p5) => {
   
   function draw(c: p5.Graphics) {
     c.background(240); 
-  
+    const mousePosition = mouse.dragPosition;
     // Expand Grid for long lines
-    const maxDragCartesian = p.max(p5m.mouse.dragPosition.array().map(p.abs));
+    
+    const maxDragCartesian = Math.max(...VecToArray(mousePosition).map(Math.abs))
     grid.adjustPadding(maxDragCartesian);
     
     // Calculate MouseY Scaling of Dynamics
-    const mousePosition = p5m.mouse.dragPosition.copy();
     const interactiveAmplitude = p.mouseIsPressed ? 0 : 
       p.constrain(p.map(p.mouseY, p.height*0.1, p.height*0.9, 1, 0),0,1);
-  
+    
     // 
     c.translate(page.marginPx, page.marginPx);
+
+    c.stroke(0, 0, 255, 128);
+    c.strokeWeight(1);
   
     //
     grid.forEachNode(({index0, position}) => {
   
       //Get variations
       noiser.step = index0;
-      let midPoint = mousePosition.copy();
+      const nois: number = noiser.result();
+      let midPoint = ObjToVec(mousePosition);
       switch (3) {
         // case 1:
         //   midPoint.add(p5.Vector.mult(shiver.vector(), interactiveAmplitude));
@@ -107,7 +115,8 @@ new p5((p: p5) => {
         //   midPoint.add(p5.Vector.mult(shiver.vector(), noiser.result * interactiveAmplitude));
         //   break;
         case 3:
-          midPoint.add(p.createVector(noiser.result()-0.5, noiser.result()-0.5).mult(50 * interactiveAmplitude));
+          let noisOffset = vecMultScalar(Vec(nois-0.5, nois-0.5), 50 * interactiveAmplitude) 
+          midPoint = vecAddVec(midPoint, noisOffset);
           break;
         // case 4:
         //   break;
@@ -115,29 +124,28 @@ new p5((p: p5) => {
           break;
       }
   
-      c.push();
-      c.translate(position.x, position.y);
-      c.stroke(0, 0, 255, 128);
-      c.strokeWeight(1);
-  
-      for (const [s, v] of switches.on.entries()) {
-        if (!v) continue;
+      // c.push();
+      // c.translate(position.x, position.y);
+      
+      for (const [num, activated] of switches.on.entries()) {
+        if (!activated) continue;
         const quad = {
-          x: (s % 4) - 1.5,
-          y: (s - (s % 4))/4 - 1.5
+          x: (num % 4) - 1.5,
+          y: (num - (num % 4))/4 - 1.5
         }
-        c.line( midPoint.x,               midPoint.y, 
-                grid.spacing.x * quad.x,  grid.spacing.y * quad.y );
+        c.line( position.x + midPoint.x,                 position.y + midPoint.y, 
+                position.x + (grid.spacing.x * quad.x),  position.y + (grid.spacing.y * quad.y) );
       }
   
       if (switches.allOff()) {
         c.strokeWeight(5);
-        c.point(midPoint.x, midPoint.y);
+        c.point(position.x + midPoint.x, position.y + midPoint.y);
+        c.strokeWeight(1);
       }
   
-      c.pop();
+      // c.pop();
     });
-    
+
   
     // ==========================================
     
@@ -161,7 +169,7 @@ new p5((p: p5) => {
   // =============================================================
   
   const switches = {
-    on: Array(16).fill(false),
+    on: <boolean[]>Array(16).fill(false),
     get(i:number) { return this.on[i] },
     set(i:number, v:boolean) { this.on[i] = v },
     toggle(i:number) { this.on[i] = !this.on[i] },
@@ -174,8 +182,7 @@ new p5((p: p5) => {
   
   p.mouseDragged = (event) => {
     if (p.mouseButton == p.LEFT) {
-      // console.log('hello');
-      p5m.mouse.drag();
+      mouse.drag();
     } else if (p.mouseButton == p.RIGHT) {
     } else if (p.mouseButton == p.CENTER) {
     }
@@ -193,7 +200,7 @@ new p5((p: p5) => {
   
     if (p.key == ' ') {
       switches.reset();
-      p5m.mouse.reset();
+      mouse.reset();
     }
   
     if (p.key == '5'){
