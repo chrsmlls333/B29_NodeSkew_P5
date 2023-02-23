@@ -1,0 +1,3 @@
+[submodule "cemjs"]
+	path = src/libraries/cemjs
+	url = git@github.com:chrsmlls333/cemjs.git

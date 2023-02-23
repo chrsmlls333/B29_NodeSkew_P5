@@ -1,0 +1,35 @@
+{
+  "name": "b29_nodeskew_p5",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "",
+  "main": "sketch.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrsmlls333/B29_NodeSkew_P5.git"
+  },
+  "author": "Chris Eugene Mills",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chrsmlls333/B29_NodeSkew_P5/issues"
+  },
+  "homepage": "https://github.com/chrsmlls333/B29_NodeSkew_P5#readme",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tweakpane/core": "^1.1.4",
+    "@types/p5": "^1.5.0",
+    "@types/three": "^0.149.0",
+    "typescript": "^4.9.3",
+    "vite": "^4.1.0"
+  },
+  "dependencies": {
+    "p5": "^1.6.0",
+    "p5.js-svg": "^1.3.3",
+    "tweakpane": "^3.1.4"
+  }
+}
