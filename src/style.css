@@ -1,8 +1,28 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+body {
+  overflow-x: hidden;
+
+  background-color: #dadada;
 }
 
 canvas {
-  display: block;
+  /* display: block; */
+  max-width: calc(100% - 4rem);
+  height: auto !important;
+  padding: 60px;
+
+  filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5));
 }
+
+body > div[class^="tp-"] {
+  z-index: 10
+}
+
