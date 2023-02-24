@@ -1,17 +1,17 @@
 import { Vec, ceilVector, vecDivVec, vecMultScalar, vecMultVec, vecSubScalar } from "../libraries/cemjs/src/cem";
 
 export interface GridNode {
-  index?: Vec,
-  index0?: Vec,
+  index: Vec,
+  index0: Vec,
   position: Vec
 }
 
 export class Grid {
-  size: Vec;
-  divs: number;
-  cells: Vec;
-  spacing: Vec;
-  extra: number;
+  size = Vec(100, 100);
+  divs = 10;
+  cells = Vec(10, 10);
+  spacing = Vec(10, 10);
+  extra = 0;
 
   nodeCache = {
     nodes: <GridNode[]>[],
@@ -19,6 +19,18 @@ export class Grid {
   }
 
   constructor(_width = 100, _height = 100, _divisions = 10) {
+    this.updateGrid(_width, _height, _divisions)
+  }
+
+  updateGrid(_width = this.size.x, _height = this.size.y, _divisions = this.divs, forceUpdate = false) {
+    if (
+      !forceUpdate && 
+      this.size && 
+      _width === this.size.x && 
+      _height === this.size.y && 
+      _divisions === this.divs
+    ) return
+
     this.size = Vec(_width, _height);
     this.divs = _divisions;
 
@@ -27,6 +39,21 @@ export class Grid {
     this.cells = ceilVector(numcells);
     this.spacing = vecDivVec(this.size, this.cells);
     this.extra = 0;
+
+    this.nodeCache.expired = true;
+  }
+
+  adjustDivisions( divs: number = this.divs ) {
+    this.updateGrid(this.size.x, this.size.y, divs, true)
+    this.nodeCache.expired = true;
+  }
+
+  adjustPadding( dist: number ) {
+    const minSpacingValue = Math.min(this.spacing.x, this.spacing.y);
+    const extraCellsPadding = Math.ceil((dist + 0.01) / minSpacingValue) + 1;
+    if (extraCellsPadding === this.extra) return
+    this.extra = extraCellsPadding;
+    this.nodeCache.expired = true;
   }
 
   getNodes( forceUpdate = false ) {
@@ -71,14 +98,7 @@ export class Grid {
   }
 
   forEachNode( callback: (node: GridNode)=>void ) {
-    const nodes = this.getNodes();
-    nodes.forEach(node => callback(node));
+    for (const node of this.getNodes()) { callback(node) }
   }
 
-  adjustPadding( dist: number ) {
-    const minSpacingValue = Math.min(this.spacing.x, this.spacing.y);
-    const extraCellsPadding = Math.ceil((dist + 0.01) / minSpacingValue) + 1;
-    this.extra = extraCellsPadding;
-    this.nodeCache.expired = true;
-  }
 }
