@@ -2,24 +2,33 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 body {
-  overflow-x: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 
+  --padding: 1.2;
+  height: calc(100% - (var(--padding) * 2rem));
+  padding: calc(var(--padding) * 1rem);
+  overflow: hidden;
+  
   background-color: #dadada;
 }
 
-canvas {
-  /* display: block; */
-  max-width: calc(100% - 4rem);
+canvas.p5Canvas {
+  max-width: calc(100% - 0rem);
+  max-height: calc(100% - 0rem);
+  width: auto !important;
   height: auto !important;
-  padding: 60px;
 
   filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5));
+}
+
+canvas.p5Canvas.nofit {
+  max-width: unset;
+  max-height: unset;
 }
 
 body > div[class^="tp-"] {
