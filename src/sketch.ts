@@ -6,10 +6,9 @@ p5Svg(p5)
 
 import { p5Manager, floorStep, VecToArray, Vec, vecMultScalar, ObjToVec, vecAddVec, constrain, vecDivScalar, Vec3, setVec } from "./libraries/cemjs/src/cem";
 import { Grid } from "./gestures/Grid";
-import { DrawStages, Mouse } from "./libraries/cemjs/src/p5";
+import { DrawStages, Mouse, p5NoiseField } from "./libraries/cemjs/src/p5";
 
 import { Pane } from 'tweakpane';
-import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { ButtonGridApi } from "@tweakpane/plugin-essentials";
 
 
@@ -40,34 +39,12 @@ new p5((p: p5) => {
     nodeOffset: Vec(),
     totalLines: 0,
     // Linear Offset
-    noise: {
-      seed: p.noiseSeed(Math.round(Math.random()*10000000)),
-      amplitude: 1,
-      scale: 0.2,//150,
-      lod: 4,
-      falloff: 0.5,
-      setDetail(lod: number) { p.noiseDetail(lod, this.falloff) },
-      setFalloff(falloff: number) { p.noiseDetail(this.lod, falloff) },
-      speed: Vec3(0,0,1),
-      position: Vec3(0,0,0),
-      tick(delta = p.deltaTime) {
-        setVec(this.position, vecAddVec(this.position, vecMultScalar(this.speed, this.scale * (delta/1000))) )
-      },
-      get({ x, y }: Vec) {
-        const scale = (1 / this.scale) - 0.9
-        return p.noise( 
-          (x + this.position.x) * scale, 
-          (y + this.position.y) * scale, 
-          (this.position.z || 0) * scale
-          ) * this.amplitude;
-        },
-      monoOutput: true,
-      getVec({ x, y }: Vec, mono?: boolean) {
-        let m = mono ?? this.monoOutput;
-        let nx = this.get({ x, y })
-        return Vec(nx, m ? nx : this.get({ x: x+1000, y: y+1000 }) )
-      }
-    },
+    noise: new p5NoiseField(p, {
+      amplitude: 30,
+      scale: 0.2,
+      speed: Vec3(0.5,0.5,0.5),
+      mono: true
+    }),
     // Subtle Rotation
     shiver: {
       period() { return 0.25 * p.map(floorStep(p.mouseX, p.width/7), 0, p.width, 5, 60); }, //sec
@@ -94,83 +71,30 @@ new p5((p: p5) => {
     }
   }
 
-  const { pane, fpsgraph } = (function() {
-    const p = new Pane({ title: "NodeSkew", expanded: true })
-    p.registerPlugin(EssentialsPlugin);
-    let fpsgraph = p.addBlade({
-      view: "fpsgraph",
-      label: "FPS",
-      lineCount: 2
-    })
-    // p.addInput(state.grid, "size", { x: {}, y: {} })
-    p.addInput(state.grid, "divs", { min: 1, max: 40, step: 1 }).on("change", ev => { state.grid.adjustDivisions(ev.value) })
-    const nosMax = 500/24
-    p.addInput(state, "nodeOffset", {
-      x: {min: -nosMax, max: nosMax},
-      y: {min: -nosMax, max: nosMax}
-    })
-    const pn = p.addFolder({ title: "Noise" })
-    pn.addInput(state.noise, "amplitude", { min: 0, max: 60 })
-    pn.addInput(state.noise, "scale", { min: 0.001, max: 0.5 })
-    pn.addInput(state.noise, "lod", { min: 1, max: 10, step: 1 }).on("change", ev => { state.noise.setDetail(ev.value) })
-    pn.addInput(state.noise, "falloff", { min: 0.001, max: 1 }).on("change", ev => { state.noise.setFalloff(ev.value) })
-    const sMax = 1;
-    pn.addInput(state.noise, "speed", {
-      x: {min: -sMax, max: sMax},
-      y: {min: -sMax, max: sMax},
-      z: {min: 0 },
-    })
-    pn.addInput(state.noise, "position", {
-      disabled: true, x: { }, y: { }, z: { },
-    })
-    pn.addInput(state.noise, "monoOutput")
-    const pt = p.addFolder({ title: "Theme" })
-    pt.addInput(state.theme, "backgroundColor", { color: { alpha: true } })
-    pt.addInput(state.theme, "strokeColor",     { color: { alpha: true } })
-    pt.addInput(state.theme, "strokeWeight",    { min: 0.1, max: 5, step: 0.1 })
-    const pc = p.addFolder({ title: "Lines"});
-    (pc.addBlade({
-      view: 'buttongrid',
-      size: [4, 4],
-      cells: (x:number, y:number) => ({
-        title: '▣'
-      }),
-      label: 'Connections',
-    }) as ButtonGridApi).on('click', (ev) => {
-      let [x, y] = ev.index
-      state.switches.toggle(x + (y*4))
-    });
-    pc.addMonitor(state, "totalLines", { })
-
-    return { pane: p, fpsgraph }
-  })();
+  
 
   p.setup = function() {
 
+    // Setup Canvas
     (window as any).p5m = p5m = new p5Manager(p, page.width, page.height)
     // TODO turn this into method
     // p.pixelDensity(Math.min(p.pixelDensity(), 2))
-
     p.frameRate(60);
     p5m.applyToCanvases((c) => { 
       c.noSmooth() 
       c.colorMode(p.RGB, 1.0)
     })
     
-    // Build Grid
+    // UI
+    mouse = new Mouse(p, state.nodeOffset)
+    p5m.registerGUIAdditions(GUIadditions)
+
+    // Build Grid, Connections, Noise
     state.grid.updateGrid( page.innerWidth, page.innerHeight, 24 )
 
-    // Set Switches
     state.switches.on[4] = state.switches.on[8] = state.switches.on[11] = true;
 
-    // Get Mouse Control
-    mouse = new Mouse(p, state.nodeOffset)
-  
-    // State and GUI
     p5m.onDraw(() => state.noise.tick(), DrawStages.predraw)
-    p5m.onDraw(() => (fpsgraph as any).begin(), DrawStages.predraw)
-    p5m.onDraw(() => (fpsgraph as any).end(), DrawStages.postdraw)
-    p5m.onDraw(() => pane.refresh(), DrawStages.postdraw)
 
     // Register Main Draw Call
     p5m.onDraw(draw)
@@ -207,7 +131,6 @@ new p5((p: p5) => {
     const maxDragCartesian = Math.max(...VecToArray(midPoint).map(Math.abs))
     state.grid.adjustPadding(maxDragCartesian);
     
-    
     // Offset from canvas edge
     c.translate(page.marginPx, page.marginPx);
 
@@ -221,8 +144,8 @@ new p5((p: p5) => {
       
       //Get variations 
       const normalizedpos = vecDivScalar(position, longEdge)
-      const nois = state.noise.getVec(normalizedpos);
-      let thisMidPoint = Vec();
+      const noisOffset = state.noise.getVec(normalizedpos, true);
+      let thisMidPoint = Vec(...VecToArray(midPoint)); //really need to ditch this implementation
       switch (3) {
         // case 1:
         //   midPoint.add(p5.Vector.mult(shiver.vector(), interactiveAmplitude));
@@ -231,7 +154,7 @@ new p5((p: p5) => {
         //   midPoint.add(p5.Vector.mult(shiver.vector(), noiser.result * interactiveAmplitude));
         //   break;
         case 3:
-          let noisOffset = Vec(nois.x-0.5, nois.y-0.5)
+          if (p.mouseIsPressed && dragOriginatingOnCanvas) break
           thisMidPoint = vecAddVec(midPoint, noisOffset);
           break;
         // case 4:
@@ -259,6 +182,7 @@ new p5((p: p5) => {
       if (state.switches.allOff()) {
         c.strokeWeight(constrain(state.theme.strokeWeight*2, 5, Infinity)); //5px
         c.point(position.x + thisMidPoint.x, position.y + thisMidPoint.y);
+        state.totalLines++
         c.strokeWeight(state.theme.strokeWeight);
       }
 
@@ -267,12 +191,72 @@ new p5((p: p5) => {
   }
   
   // =============================================================
+
+  function GUIadditions(p: Pane) {
+    
+    const pg = p.addFolder({ title: "Grid" })
+    pg.addInput(state.grid, "divs", { 
+      label: "Cells",
+      min: 1, max: 60, step: 1 
+    }).on("change", ev => { state.grid.adjustDivisions(ev.value) })
+    const nosMax = 500/24
+    pg.addInput(state, "nodeOffset", {
+      label: "Anchor",
+      x: {min: -nosMax, max: nosMax},
+      y: {min: -nosMax, max: nosMax}
+    })
+
+    const pc = p.addFolder({ title: "Lines"});
+    (pc.addBlade({
+      view: 'buttongrid',
+      size: [4, 4],
+      cells: (x:number, y:number) => ({
+        title: connectionKeyMap[x + (y*4)]
+      }),
+      label: 'Connection Matrix',
+    }) as ButtonGridApi).on('click', (ev) => {
+      let [x, y] = ev.index
+      state.switches.toggle(x + (y*4))
+    });
+    pc.addMonitor(state, "totalLines", { label: "# Lines" })
+
+    
+    const pt = p.addFolder({ title: "Theme" })
+    pt.addInput(state.theme, "backgroundColor", { color: { alpha: true } })
+    pt.addInput(state.theme, "strokeColor",     { color: { alpha: true } })
+    pt.addInput(state.theme, "strokeWeight",    { min: 0.1, max: 5, step: 0.1 })
+
+    
+    const pn = p.addFolder({ title: "Noise" })
+    pn.addInput(state.noise, "amplitude", { min: 0, max: 60 })
+    pn.addInput(state.noise, "scale", { min: 0.001, max: 0.5 })
+    pn.addInput(state.noise, "lod", { min: 1, max: 10, step: 1 })
+      .on("change", ev => { state.noise.setDetail(ev.value) })
+    pn.addInput(state.noise, "falloff", { min: 0.001, max: 1 })
+      .on("change", ev => { state.noise.setFalloff(ev.value) })
+    const sMax = 3;
+    pn.addInput(state.noise, "speed", {
+      x: {min: -sMax, max: sMax},
+      y: {min: -sMax, max: sMax},
+      z: {min: 0 },
+    })
+    pn.addInput(state.noise, "position", {
+      disabled: true, x: { }, y: { }, z: { },
+    })
+    pn.addInput(state.noise, "mono")
+  }
+
+  // =============================================================
   
-  
-  
-  
+  let dragOriginatingOnCanvas: boolean
+  p.mousePressed = (event: MouseEvent) => {
+    dragOriginatingOnCanvas = event.target === p5m.canvas.elt
+  }
+  p.mouseReleased = (event: MouseEvent) => {
+    dragOriginatingOnCanvas = false;
+  }
   p.mouseDragged = (event: MouseEvent) => {
-    if (event.target !== p5m.canvas.elt) return
+    if (!dragOriginatingOnCanvas) return
     
     if (p.mouseButton == p.LEFT) {
       mouse.dragCoefficent = 0.4/24*(state.grid.divs/24) //TODO needs work to formalize
@@ -282,13 +266,13 @@ new p5((p: p5) => {
     }
   }
   
+  const connectionKeyMap = ['1','2','3','4',
+                            'q','w','e','r',
+                            'a','s','d','f',
+                            'z','x','c','v']
   p.keyTyped = (event) => {
-    const keymap = ['1','2','3','4',
-                    'q','w','e','r',
-                    'a','s','d','f',
-                    'z','x','c','v']
-    if (keymap.some(v => v == p.key)) {
-      const index = keymap.indexOf(p.key);
+    if (connectionKeyMap.some(v => v == p.key)) {
+      const index = connectionKeyMap.indexOf(p.key);
       state.switches.toggle(index);
     }
   
