@@ -4,24 +4,28 @@ import p5 from "p5"
 import p5Svg from "p5.js-svg"
 p5Svg(p5)
 
-import { p5Manager, floorStep, VecToArray, Vec, vecMultScalar, ObjToVec, vecAddVec, constrain, vecDivScalar, Vec3, setVec } from "./libraries/cemjs/src/cem";
-import { Grid } from "./gestures/Grid";
-import { DrawStages, Mouse, p5NoiseField } from "./libraries/cemjs/src/p5";
-
 import { Pane } from 'tweakpane';
 import { ButtonGridApi } from "@tweakpane/plugin-essentials";
+import { Vector2, Vector3 } from "@math.gl/core";
 
+import { p5Manager, floorStep, constrain, bboxCorners } from "./libraries/cemjs/src/cem";
+import { drawCropLine, DrawStages, Mouse, p5NoiseField } from "./libraries/cemjs/src/p5";
 
+import { Grid } from "./gestures/Grid";
 
 let page = {
   paperWidthIn: 11,
   paperHeightIn: 8.5,
   resolution: 96,
-  marginPx: 0, 
-  get width()  { return  this.paperWidthIn*this.resolution },
+  marginIn: 0, 
+  get width()  { return this.paperWidthIn*this.resolution },
   get height() { return this.paperHeightIn*this.resolution },
-  get innerWidth()  { return  (this.paperWidthIn*this.resolution) - (this.marginPx*2) },
-  get innerHeight() { return (this.paperHeightIn*this.resolution) - (this.marginPx*2) },
+  get margin() { return this.marginIn*this.resolution },
+  get innerWidth()  { return this.width - (this.margin*2) },
+  get innerHeight() { return this.height - (this.margin*2) },
+  get sizeBounds() { return bboxCorners(0,0,this.width,this.height) },
+  get insetSizeBounds() { return bboxCorners(0,0,this.innerWidth,this.innerHeight) },
+  get insetBounds() { return bboxCorners(this.margin,this.margin,this.innerWidth,this.innerHeight) }
 };
 
 
@@ -36,13 +40,13 @@ new p5((p: p5) => {
     // Grid Settings
     grid: new Grid(),
     // Drag Offset
-    nodeOffset: Vec(),
+    nodeOffset: new Vector2,
     totalLines: 0,
     // Linear Offset
     noise: new p5NoiseField(p, {
       amplitude: 30,
       scale: 0.2,
-      speed: Vec3(0.5,0.5,0.5),
+      speed: new Vector3(0.5,0.5,0.5),
       mono: true
     }),
     // Subtle Rotation
@@ -50,9 +54,12 @@ new p5((p: p5) => {
       period() { return 0.25 * p.map(floorStep(p.mouseX, p.width/7), 0, p.width, 5, 60); }, //sec
       cycle() { return (p.frameCount / 60) * (p.TWO_PI / this.period()) },
       amplitude: 50,
-      vector() {
+      get() {
         const c = this.cycle();
-        return vecMultScalar(Vec( Math.cos(c), Math.sin(c)), this.amplitude);
+        return {
+          x: Math.cos(c) * this.amplitude,
+          y: Math.sin(c) * this.amplitude
+        }
       }
     },
     switches: {
@@ -90,9 +97,10 @@ new p5((p: p5) => {
     p5m.registerGUIAdditions(GUIadditions)
 
     // Build Grid, Connections, Noise
-    state.grid.updateGrid( page.innerWidth, page.innerHeight, 24 )
+    state.grid.updateGrid( page.innerWidth, page.innerHeight, 24, true )
 
-    state.switches.on[4] = state.switches.on[8] = state.switches.on[11] = true;
+    // state.switches.on[4] = state.switches.on[8] = state.switches.on[11] = true;
+    state.switches.on[5] = true
 
     p5m.onDraw(() => state.noise.tick(), DrawStages.predraw)
 
@@ -120,32 +128,40 @@ new p5((p: p5) => {
 
   // ======================================================
   
-  
+  let 
+    dragOffset = new Vector2(), 
+    dragOffsetPerNode = new Vector2(),
+    uvPosition = new Vector2();
+
   function draw(c: p5.Graphics) {
+    //Clear
+    c.background(state.theme.backgroundColor)
+
     
     const longEdge = Math.max(c.width,c.height)
     state.totalLines = 0;
 
     // Expand Grid for long lines
-    let midPoint = vecMultScalar(ObjToVec(state.nodeOffset), state.grid.spacing.x) 
-    const maxDragCartesian = Math.max(...VecToArray(midPoint).map(Math.abs))
-    state.grid.adjustPadding(maxDragCartesian);
+    dragOffset.copy(state.nodeOffset)
+    dragOffset.divide([state.grid.divs, state.grid.divs]) //normalize to divisions
+    mouse.dragCoefficent = 0.7*state.grid.divs //compensate on dragging
+    state.grid.adjustPadding(dragOffset.x, dragOffset.y);
     
     // Offset from canvas edge
-    c.translate(page.marginPx, page.marginPx);
+    c.translate(page.margin, page.margin);
 
     // Set Coloring and Theme
-    c.background(state.theme.backgroundColor)
     c.stroke(state.theme.strokeColor);
     c.strokeWeight(state.theme.strokeWeight);
   
     // Main Loop
-    state.grid.forEachNode(({index0, position}) => {
+    state.grid.forEachNode(({position}) => {
       
       //Get variations 
-      const normalizedpos = vecDivScalar(position, longEdge)
-      const noisOffset = state.noise.getVec(normalizedpos, true);
-      let thisMidPoint = Vec(...VecToArray(midPoint)); //really need to ditch this implementation
+      uvPosition.fromArray(position).divide([longEdge, longEdge])
+      const [ x, y ] = state.noise.getVec2(uvPosition, true)
+      
+      dragOffsetPerNode.copy(dragOffset)
       switch (3) {
         // case 1:
         //   midPoint.add(p5.Vector.mult(shiver.vector(), interactiveAmplitude));
@@ -154,8 +170,8 @@ new p5((p: p5) => {
         //   midPoint.add(p5.Vector.mult(shiver.vector(), noiser.result * interactiveAmplitude));
         //   break;
         case 3:
-          if (p.mouseIsPressed && dragOriginatingOnCanvas) break
-          thisMidPoint = vecAddVec(midPoint, noisOffset);
+          // if (p.mouseIsPressed && dragOriginatingOnCanvas) break
+          dragOffsetPerNode.add([x,y])
           break;
         // case 4:
         //   break;
@@ -169,19 +185,20 @@ new p5((p: p5) => {
           x: (num % 4) - 1.5,
           y: (num - (num % 4))/4 - 1.5
         }
-        c.line( 
-          position.x + thisMidPoint.x,
-          position.y + thisMidPoint.y, 
-          position.x + (state.grid.spacing.x * current.x),  
-          position.y + (state.grid.spacing.y * current.y) 
-        );
 
-        state.totalLines++
+        const drawn = drawCropLine(c, 
+          position[0] + dragOffsetPerNode.x,
+          position[1] + dragOffsetPerNode.y,
+          position[0] + (state.grid.spacing.x * current.x),  
+          position[1] + (state.grid.spacing.y * current.y),
+          page.insetSizeBounds
+        )
+        if (drawn) state.totalLines++
       }
   
       if (state.switches.allOff()) {
-        c.strokeWeight(constrain(state.theme.strokeWeight*2, 5, Infinity)); //5px
-        c.point(position.x + thisMidPoint.x, position.y + thisMidPoint.y);
+        c.strokeWeight(constrain(state.theme.strokeWeight*2, 3, Infinity)); //5px
+        c.point(position[0] + dragOffsetPerNode.x, position[1] + dragOffsetPerNode.y);
         state.totalLines++
         c.strokeWeight(state.theme.strokeWeight);
       }
@@ -195,15 +212,19 @@ new p5((p: p5) => {
   function GUIadditions(p: Pane) {
     
     const pg = p.addFolder({ title: "Grid" })
+    pg.addInput(page, "marginIn", { 
+      min: 0, max: Math.min(page.paperWidthIn,page.paperHeightIn)/2,
+      label: "Margin"
+    }).on("change", ev => {
+      state.grid.updateGrid( page.innerWidth, page.innerHeight )
+    })
     pg.addInput(state.grid, "divs", { 
       label: "Cells",
-      min: 1, max: 60, step: 1 
+      min: 1, max: 80, step: 1 
     }).on("change", ev => { state.grid.adjustDivisions(ev.value) })
     const nosMax = 500/24
     pg.addInput(state, "nodeOffset", {
-      label: "Anchor",
-      x: {min: -nosMax, max: nosMax},
-      y: {min: -nosMax, max: nosMax}
+      label: "Anchor", x: { }, y: { }
     })
 
     const pc = p.addFolder({ title: "Lines"});
@@ -222,13 +243,13 @@ new p5((p: p5) => {
 
     
     const pt = p.addFolder({ title: "Theme" })
-    pt.addInput(state.theme, "backgroundColor", { color: { alpha: true } })
-    pt.addInput(state.theme, "strokeColor",     { color: { alpha: true } })
-    pt.addInput(state.theme, "strokeWeight",    { min: 0.1, max: 5, step: 0.1 })
+    pt.addInput(state.theme, "backgroundColor", { color: { alpha: true }, label: "Bg Color" })
+    pt.addInput(state.theme, "strokeColor",     { color: { alpha: true }, label: "Line Color" })
+    pt.addInput(state.theme, "strokeWeight",    { min: 0.1, max: 5, step: 0.1, label: "Line Weight" })
 
     
     const pn = p.addFolder({ title: "Noise" })
-    pn.addInput(state.noise, "amplitude", { min: 0, max: 60 })
+    pn.addInput(state.noise, "amplitude", { min: 0 })
     pn.addInput(state.noise, "scale", { min: 0.001, max: 0.5 })
     pn.addInput(state.noise, "lod", { min: 1, max: 10, step: 1 })
       .on("change", ev => { state.noise.setDetail(ev.value) })
@@ -259,7 +280,6 @@ new p5((p: p5) => {
     if (!dragOriginatingOnCanvas) return
     
     if (p.mouseButton == p.LEFT) {
-      mouse.dragCoefficent = 0.4/24*(state.grid.divs/24) //TODO needs work to formalize
       mouse.drag();
     } else if (p.mouseButton == p.RIGHT) {
     } else if (p.mouseButton == p.CENTER) {
