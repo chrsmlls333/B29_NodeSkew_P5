@@ -6,6 +6,8 @@ frontend:
   phases:
     preBuild:
       commands:
+        - git config --global url."https://github.com/".insteadOf "git@github.com:"
+        - git submodule update --init --recursive
         - nvm use ${VERSION_NODE_16}
         - npm ci
     build:
