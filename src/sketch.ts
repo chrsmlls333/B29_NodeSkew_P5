@@ -107,20 +107,6 @@ new p5((p: p5) => {
     // Register Main Draw Call
     p5m.onDraw(draw)
 
-    // TODO replace this with exportable config
-    p5m.onDraw(c => { 
-      p5m.setUserData({
-        variables: {
-          canvas: {
-            width: c.width,
-            height: c.height,
-          },
-          state,
-          // grid,
-          // interactiveAmplitude,
-        }
-      })
-    })
 
     console.log("Draw Calls", p5m.getDrawCalls());
   }
@@ -209,9 +195,9 @@ new p5((p: p5) => {
   
   // =============================================================
 
-  function GUIadditions(p: Pane) {
+  function GUIadditions(pane: Pane) {
     
-    const pg = p.addFolder({ title: "Grid" })
+    const pg = pane.addFolder({ title: "Grid" })
     pg.addInput(page, "marginIn", { 
       min: 0, max: Math.min(page.paperWidthIn,page.paperHeightIn)/2,
       label: "Margin"
@@ -224,10 +210,10 @@ new p5((p: p5) => {
     }).on("change", ev => { state.grid.adjustDivisions(ev.value) })
     const nosMax = 500/24
     pg.addInput(state, "nodeOffset", {
-      label: "Anchor", x: { }, y: { }
+      label: "Anchor"
     })
 
-    const pc = p.addFolder({ title: "Lines"});
+    const pc = pane.addFolder({ title: "Lines"});
     (pc.addBlade({
       view: 'buttongrid',
       size: [4, 4],
@@ -242,13 +228,13 @@ new p5((p: p5) => {
     pc.addMonitor(state, "totalLines", { label: "# Lines" })
 
     
-    const pt = p.addFolder({ title: "Theme" })
+    const pt = pane.addFolder({ title: "Theme" })
     pt.addInput(state.theme, "backgroundColor", { color: { alpha: true }, label: "Bg Color" })
     pt.addInput(state.theme, "strokeColor",     { color: { alpha: true }, label: "Line Color" })
     pt.addInput(state.theme, "strokeWeight",    { min: 0.1, max: 5, step: 0.1, label: "Line Weight" })
 
     
-    const pn = p.addFolder({ title: "Noise" })
+    const pn = pane.addFolder({ title: "Noise" })
     pn.addInput(state.noise, "amplitude", { min: 0 })
     pn.addInput(state.noise, "scale", { min: 0.001, max: 0.5 })
     pn.addInput(state.noise, "lod", { min: 1, max: 10, step: 1 })
@@ -262,7 +248,7 @@ new p5((p: p5) => {
       z: {min: 0 },
     })
     pn.addInput(state.noise, "position", {
-      disabled: true, x: { }, y: { }, z: { },
+      disabled: true
     })
     pn.addInput(state.noise, "mono")
   }
