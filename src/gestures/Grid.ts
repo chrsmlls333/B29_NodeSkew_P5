@@ -1,5 +1,5 @@
 import { Vector2 } from "@math.gl/core";
-import { cloneDeep } from "lodash";
+import { cloneDeep } from "lodash-es";
 
 
 
