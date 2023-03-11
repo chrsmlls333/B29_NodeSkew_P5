@@ -12,9 +12,13 @@ export interface GridNode {
 export class Grid {
   size = new Vector2();
   divs = 2;
-  numcells = new Vector2();
   spacing = new Vector2();
+  numcells = new Vector2();
   extra = new Vector2();
+  get numcells0() { return new Vector2([
+    this.numcells.x + this.extra.x*2,
+    this.numcells.y + this.extra.y*2,
+  ])}
   squared = false
 
   nodeCache = {
@@ -91,8 +95,7 @@ export class Grid {
     if( forceUpdate || this.nodeCache.expired ) {
       if (!this.nodeCache.nodes) this.nodeCache.nodes = []
       let nodes = this.nodeCache.nodes
-      let xMax = (this.numcells.x + 1 + this.extra.x*2)
-      let yMax = (this.numcells.y + 1 + this.extra.y*2)
+      const [ xMax, yMax ] = this.numcells0
       let len = xMax*yMax;
 
       for (let y = 0; y < yMax; y++) {
@@ -114,11 +117,16 @@ export class Grid {
 
   getNodePosition( _x:number, _y:number, index0 = false ) {
     const nodes = this.getNodes();
-    let xMax = (this.numcells.x + 1 + this.extra.x*2)
-    let yMax = (this.numcells.y + 1 + this.extra.y*2)
+    const [ xMax, yMax ] = this.numcells0
     let x = index0 ? _x : _x + this.extra.x;
     let y = index0 ? _y : _y + this.extra.y;
     return nodes[x + (y * xMax)].position;
+  }
+
+  getPerimeterSize( index0 = false ){
+    let numset = this.numcells
+    if (index0) numset = this.numcells0
+    return numset[0]*2 + numset[1]*2
   }
 
   get() {
@@ -128,7 +136,7 @@ export class Grid {
       data: {
         size,
         cells: {
-          num: numcells,
+          numcells,
           extra,
           spacing,
           squared

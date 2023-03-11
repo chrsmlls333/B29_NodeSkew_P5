@@ -16,7 +16,7 @@ import { Grid } from "./gestures/Grid";
 const urlParams = new URLSearchParams(window.location.search)
 
 let page = {
-  fullscreenMode: urlParams.get('fs') === 'true',
+  fullscreenMode: urlParams.get('fs') === '1',
   paperWidthIn: Number.parseFloat(urlParams.get('w') || "") || 11,
   paperHeightIn: Number.parseFloat(urlParams.get('h') || "") || 8.5,
   resolution: Number.parseInt(urlParams.get('ppi') || "") || 96,
@@ -89,7 +89,7 @@ new p5((p: p5) => {
     (window as any).p5m = p5m = new p5Manager(p, page.fullscreenMode, page.width, page.height)
     // TODO turn this into method
     // p.pixelDensity(Math.min(p.pixelDensity(), 2))
-    p.frameRate(60);
+    p.frameRate(120);
     p5m.applyToCanvases((c) => { 
       c.noSmooth() 
       c.colorMode(p.RGB, 1.0)
@@ -110,8 +110,8 @@ new p5((p: p5) => {
     // Register Main Draw Call
     p5m.onDraw(draw)
 
-
-    console.log("Draw Calls", p5m.getDrawCalls());
+    //Load Settings
+    p5m.getGUIPresetFromLocalStorage()
   }
 
 
@@ -120,13 +120,16 @@ new p5((p: p5) => {
   let 
     dragOffset = new Vector2(), 
     dragOffsetPerNode = new Vector2(),
-    uvPosition = new Vector2();
+    uvPosition = new Vector2(),
+    paddingAmount = [0,0],
+    lineBounds: number[][];
 
   function draw(c: p5.Graphics) {
     //Clear
     c.background(state.theme.backgroundColor)
 
-    
+    // Optimized Gets
+    lineBounds = page.insetSizeBounds
     const longEdge = Math.max(c.width,c.height)
     state.totalLines = 0;
 
@@ -134,40 +137,31 @@ new p5((p: p5) => {
     dragOffset.copy(state.nodeOffset)
     dragOffset.divide([state.grid.divs, state.grid.divs]) //normalize to divisions
     mouse.dragCoefficent = 0.7*state.grid.divs //compensate on dragging
-    state.grid.adjustPadding(dragOffset.x, dragOffset.y);
+    paddingAmount = dragOffset.map(v => Math.abs(v) + state.noise.amplitude/2)
+    state.grid.adjustPadding(...paddingAmount);
     
     // Offset from canvas edge
-    c.translate(page.margin, page.margin);
+    if (page.margin != 0) c.translate(page.margin, page.margin);
 
     // Set Coloring and Theme
-    c.stroke(state.theme.strokeColor);
-    c.strokeWeight(state.theme.strokeWeight);
+    if (p.frameCount < 30) {
+      c.stroke(state.theme.strokeColor);
+      c.strokeWeight(state.theme.strokeWeight);
+    }
   
     // Main Loop
-    state.grid.forEachNode(({position}) => {
+    // const [ xMax0, yMax0 ] = state.grid.numcells0
+    state.grid.forEachNode(({index0, position}) => {
+      // const [ x0, y0 ] = index0
+      // const i0 = y0 * xMax0 + x0;
       
       //Get variations 
       uvPosition.fromArray(position).divide([longEdge, longEdge])
-      const [ x, y ] = state.noise.getVec2(uvPosition, true)
-      
+      const [ nx, ny ] = state.noise.getVec2(uvPosition, true)
       dragOffsetPerNode.copy(dragOffset)
-      switch (3) {
-        // case 1:
-        //   midPoint.add(p5.Vector.mult(shiver.vector(), interactiveAmplitude));
-        //   break;
-        // case 2:
-        //   midPoint.add(p5.Vector.mult(shiver.vector(), noiser.result * interactiveAmplitude));
-        //   break;
-        case 3:
-          // if (p.mouseIsPressed && dragOriginatingOnCanvas) break
-          dragOffsetPerNode.add([x,y])
-          break;
-        // case 4:
-        //   break;
-        default:
-          break;
-      }
+      dragOffsetPerNode.add([nx,ny])
       
+      // Draw Connection Lines 
       for (const [num, activated] of state.switches.on.entries()) {
         if (!activated) continue;
         const current = {
@@ -180,7 +174,7 @@ new p5((p: p5) => {
           position[1] + dragOffsetPerNode.y,
           position[0] + (state.grid.spacing.x * current.x),  
           position[1] + (state.grid.spacing.y * current.y),
-          page.insetSizeBounds
+          lineBounds
         )
         if (drawn) state.totalLines++
       }
