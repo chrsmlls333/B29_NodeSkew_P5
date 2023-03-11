@@ -13,13 +13,16 @@ import { drawCropLine, DrawStages, Mouse, p5NoiseField } from "./libraries/cemjs
 
 import { Grid } from "./gestures/Grid";
 
+const urlParams = new URLSearchParams(window.location.search)
+
 let page = {
-  paperWidthIn: 11,
-  paperHeightIn: 8.5,
-  resolution: 96,
-  marginIn: 0, 
-  get width()  { return this.paperWidthIn*this.resolution },
-  get height() { return this.paperHeightIn*this.resolution },
+  fullscreenMode: urlParams.get('fs') === 'true',
+  paperWidthIn: Number.parseFloat(urlParams.get('w') || "") || 11,
+  paperHeightIn: Number.parseFloat(urlParams.get('h') || "") || 8.5,
+  resolution: Number.parseInt(urlParams.get('ppi') || "") || 96,
+  marginIn: Number.parseFloat(urlParams.get('m') || "") || 0, 
+  get width()  { return this.fullscreenMode ? window.innerWidth  : this.paperWidthIn*this.resolution },
+  get height() { return this.fullscreenMode ? window.innerHeight : this.paperHeightIn*this.resolution },
   get margin() { return this.marginIn*this.resolution },
   get innerWidth()  { return this.width - (this.margin*2) },
   get innerHeight() { return this.height - (this.margin*2) },
@@ -83,7 +86,7 @@ new p5((p: p5) => {
   p.setup = function() {
 
     // Setup Canvas
-    (window as any).p5m = p5m = new p5Manager(p, page.width, page.height)
+    (window as any).p5m = p5m = new p5Manager(p, page.fullscreenMode, page.width, page.height)
     // TODO turn this into method
     // p.pixelDensity(Math.min(p.pixelDensity(), 2))
     p.frameRate(60);
